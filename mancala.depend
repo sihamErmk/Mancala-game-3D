@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1769566157 source:c:\users\lenovo\downloads\code\mancala\main.cpp
+1769605621 source:c:\users\lenovo\downloads\code\mancala\main.cpp
 	<GL/glew.h>
 	<GLFW/glfw3.h>
 	<iostream>
@@ -965,7 +965,7 @@
 	<glm/glm.hpp>
 	<glm/gtc/matrix_transform.hpp>
 
-1769562447 c:\users\lenovo\downloads\code\mancala\geometry.hpp
+1769605687 c:\users\lenovo\downloads\code\mancala\geometry.hpp
 	"Mesh.hpp"
 	<cmath>
 
@@ -974,7 +974,7 @@
 	<glm/glm.hpp>
 	<vector>
 
-1769566268 c:\users\lenovo\downloads\code\mancala\mancalagame.hpp
+1769605754 c:\users\lenovo\downloads\code\mancala\mancalagame.hpp
 	<vector>
 	<queue>
 	<glm/glm.hpp>

@@ -7,7 +7,6 @@
 #include <iostream>
 #include <string>
 
-// --- STRUCTURES ---
 struct Pit {
     int id;
     int seeds;
@@ -37,13 +36,9 @@ class MancalaGame {
 public:
     std::vector<Pit> pits;
     GameState state;
-
-    // --- ETAT DU JEU ---
-    int currentPlayer; // 0 = Joueur 1 (Bas), 1 = Joueur 2 (Haut)
+    int currentPlayer;
     bool gameOver;
     std::string statusMessage;
-
-    // --- ANIMATION ---
     std::vector<int> pathQueue;
     MovingSeed activeSeed;
     int seedsInHand;
@@ -56,12 +51,11 @@ public:
     void InitBoard() {
         pits.clear();
         state = IDLE;
-        currentPlayer = 0; // Le Joueur 1 commence toujours
+        currentPlayer = 0;
         gameOver = false;
         moveSpeed = 3.0f;
         statusMessage = "Jeu pret. Tour du Joueur 1 (Bas)";
 
-        // --- JOUEUR 1 (Bas) : Indices 0 à 5 ---
         for(int i = 0; i < 6; i++) {
             Pit p; p.id = i; p.seeds = 4;
             p.position = glm::vec3((i - 2.5f) * 2.2f, 0.0f, 1.8f);
@@ -69,13 +63,11 @@ public:
             pits.push_back(p);
         }
 
-        // --- MAGASIN J1 : Indice 6 ---
         Pit store1; store1.id = 6; store1.seeds = 0;
         store1.position = glm::vec3(7.5f, 0.0f, 0.0f);
         store1.radius = 1.3f; store1.isSelected = false; store1.isHovered = false; store1.isHidden = false; store1.isActive = false;
         pits.push_back(store1);
 
-        // --- JOUEUR 2 (Haut) : Indices 7 à 12 ---
         for(int i = 0; i < 6; i++) {
             Pit p; p.id = 7 + i; p.seeds = 4;
             p.position = glm::vec3((2.5f - i) * 2.2f, 0.0f, -1.8f);
@@ -83,7 +75,6 @@ public:
             pits.push_back(p);
         }
 
-        // --- MAGASIN J2 : Indice 13 ---
         Pit store2; store2.id = 13; store2.seeds = 0;
         store2.position = glm::vec3(-7.5f, 0.0f, 0.0f);
         store2.radius = 1.3f; store2.isSelected = false; store2.isHovered = false; store2.isHidden = false; store2.isActive = false;
@@ -105,13 +96,10 @@ public:
         std::cout << "========================================\n" << std::endl;
     }
 
-    // Met à jour quelles fosses sont "actives" (brillantes) selon le tour
     void UpdateActivePits() {
         for(auto& p : pits) {
             p.isActive = false;
-            // Si c'est au J1, seules 0-5 sont actives
             if (currentPlayer == 0 && p.id >= 0 && p.id <= 5 && p.seeds > 0) p.isActive = true;
-            // Si c'est au J2, seules 7-12 sont actives
             if (currentPlayer == 1 && p.id >= 7 && p.id <= 12 && p.seeds > 0) p.isActive = true;
         }
     }
@@ -155,7 +143,6 @@ public:
 
         for(auto& pit : pits) {
             if (pit.isHidden) continue;
-            // En mode jeu, on ne peut cliquer que sur les fosses ACTIVES
             if (!isEditMode && !pit.isActive) continue;
 
             glm::vec3 oc = pit.position - rayOrigin;
@@ -180,7 +167,6 @@ public:
     }
 
     void TryPlayMove(int pitIndex) {
-        // Verification double (redondante mais sûre)
         if (currentPlayer == 0 && (pitIndex < 0 || pitIndex > 5)) return;
         if (currentPlayer == 1 && (pitIndex < 7 || pitIndex > 12)) return;
 
@@ -192,7 +178,6 @@ public:
 
         for (int i = 0; i < seedsInHand; i++) {
             currentIndex = (currentIndex + 1) % 14;
-            // Sauter magasin adverse
             if (currentPlayer == 0 && currentIndex == 13) currentIndex = 0;
             else if (currentPlayer == 1 && currentIndex == 6) currentIndex = 7;
 
@@ -209,7 +194,6 @@ public:
         activeSeed.endPos = pits[firstTarget].position;
         activeSeed.progress = 0.0f;
 
-        // Pendant l'animation, plus personne n'est actif
         for(auto& p : pits) p.isActive = false;
     }
 
@@ -217,7 +201,6 @@ public:
         state = IDLE;
         bool switchTurn = true;
 
-        // REGLE REJOUER
         if (currentPlayer == 0 && lastPitIdx == 6) {
             statusMessage = ">>> JOUEUR 1 REJOUE ! (Derniere au magasin)";
             switchTurn = false;
@@ -226,7 +209,6 @@ public:
             switchTurn = false;
         }
 
-        // REGLE CAPTURE
         else if (pits[lastPitIdx].seeds == 1) {
             bool isMySide = false;
             if (currentPlayer == 0 && lastPitIdx >= 0 && lastPitIdx <= 5) isMySide = true;
@@ -252,8 +234,8 @@ public:
                 currentPlayer = 1 - currentPlayer;
                 statusMessage = (currentPlayer == 0) ? "Tour du Joueur 1 (Bas)" : "Tour du Joueur 2 (Haut)";
             }
-            UpdateActivePits(); // Mettre à jour les lumières
-            PrintGameState();   // Afficher le score dans la console
+            UpdateActivePits();
+            PrintGameState();
         }
     }
 
@@ -277,46 +259,42 @@ public:
     }
 
     void UpdateHover(glm::vec3 rayOrigin, glm::vec3 rayDir, bool isEditMode) {
-    // Reset
-    for (auto& pit : pits)
-        pit.isHovered = false;
+        for (auto& pit : pits)
+            pit.isHovered = false;
 
-    if (state == ANIMATING && !isEditMode)
-        return;
+        if (state == ANIMATING && !isEditMode)
+            return;
 
-    float minDistance = 1000.0f;
-    int hoverID = -1;
+        float minDistance = 1000.0f;
+        int hoverID = -1;
 
-    for (auto& pit : pits) {
-        if (pit.isHidden)
-            continue;
+        for (auto& pit : pits) {
+            if (pit.isHidden)
+                continue;
 
-        // En mode jeu : seulement les fosses actives
-        if (!isEditMode && !pit.isActive)
-            continue;
+            if (!isEditMode && !pit.isActive)
+                continue;
 
-        // Ray-sphere intersection simplifiée
-        glm::vec3 oc = pit.position - rayOrigin;
-        float t = glm::dot(oc, rayDir);
-        if (t < 0)
-            continue;
+            glm::vec3 oc = pit.position - rayOrigin;
+            float t = glm::dot(oc, rayDir);
+            if (t < 0)
+                continue;
 
-        glm::vec3 pOnRay = rayOrigin + rayDir * t;
-        float distanceToCenter = glm::length(pit.position - pOnRay);
+            glm::vec3 pOnRay = rayOrigin + rayDir * t;
+            float distanceToCenter = glm::length(pit.position - pOnRay);
 
-        if (distanceToCenter < pit.radius) {
-            float distCam = glm::length(pit.position - rayOrigin);
-            if (distCam < minDistance) {
-                minDistance = distCam;
-                hoverID = pit.id;
+            if (distanceToCenter < pit.radius) {
+                float distCam = glm::length(pit.position - rayOrigin);
+                if (distCam < minDistance) {
+                    minDistance = distCam;
+                    hoverID = pit.id;
+                }
             }
         }
-    }
 
-    if (hoverID != -1) {
-        pits[hoverID].isHovered = true;
+        if (hoverID != -1) {
+            pits[hoverID].isHovered = true;
+        }
     }
-}
-
 };
 #endif
