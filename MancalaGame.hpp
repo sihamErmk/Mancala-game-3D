@@ -17,6 +17,7 @@ struct Pit {
     bool isHovered;
     bool isHidden;
     bool isActive;
+    float depth;
 };
 
 enum GameState {
@@ -30,7 +31,6 @@ struct MovingSeed {
     glm::vec3 currentPos;
     float progress;
     int targetPitIndex;
-    int colorIdx; // Pour garder la couleur de la graine qui vole
 };
 
 class MancalaGame {
@@ -39,12 +39,9 @@ public:
     GameState state;
 
     // --- ETAT DU JEU ---
-    int currentPlayer; // 0 = Bas, 1 = Haut
+    int currentPlayer; // 0 = Joueur 1 (Bas), 1 = Joueur 2 (Haut)
     bool gameOver;
     std::string statusMessage;
-
-    // NOUVEAU : Signal pour dire au main.cpp de tourner la caméra
-    bool turnChanged;
 
     // --- ANIMATION ---
     std::vector<int> pathQueue;
@@ -59,13 +56,12 @@ public:
     void InitBoard() {
         pits.clear();
         state = IDLE;
-        currentPlayer = 0;
+        currentPlayer = 0; // Le Joueur 1 commence toujours
         gameOver = false;
-        turnChanged = true; // On force la caméra à se placer au début
-        moveSpeed = 5.0f;
-        statusMessage = "Tour du Joueur 1";
+        moveSpeed = 6.0f;
+        statusMessage = "Jeu pret. Tour du Joueur 1 (Bas)";
 
-        // J1 (Bas)
+        // --- JOUEUR 1 (Bas) : Indices 0 à 5 ---
         for(int i = 0; i < 6; i++) {
             Pit p; p.id = i; p.seeds = 4;
             p.position = glm::vec3((i - 2.5f) * 2.2f, 0.0f, 1.8f);
@@ -73,13 +69,13 @@ public:
             pits.push_back(p);
         }
 
-        // Magasin J1
+        // --- MAGASIN J1 : Indice 6 ---
         Pit store1; store1.id = 6; store1.seeds = 0;
         store1.position = glm::vec3(7.5f, 0.0f, 0.0f);
         store1.radius = 1.3f; store1.isSelected = false; store1.isHovered = false; store1.isHidden = false; store1.isActive = false;
         pits.push_back(store1);
 
-        // J2 (Haut)
+        // --- JOUEUR 2 (Haut) : Indices 7 à 12 ---
         for(int i = 0; i < 6; i++) {
             Pit p; p.id = 7 + i; p.seeds = 4;
             p.position = glm::vec3((2.5f - i) * 2.2f, 0.0f, -1.8f);
@@ -87,19 +83,35 @@ public:
             pits.push_back(p);
         }
 
-        // Magasin J2
+        // --- MAGASIN J2 : Indice 13 ---
         Pit store2; store2.id = 13; store2.seeds = 0;
         store2.position = glm::vec3(-7.5f, 0.0f, 0.0f);
         store2.radius = 1.3f; store2.isSelected = false; store2.isHovered = false; store2.isHidden = false; store2.isActive = false;
         pits.push_back(store2);
 
         UpdateActivePits();
+        PrintGameState();
     }
 
+    void PrintGameState() {
+        std::cout << "\n========================================" << std::endl;
+        std::cout << "               MANCALA 3D               " << std::endl;
+        std::cout << "========================================" << std::endl;
+        std::cout << "SCORE J2 (Haut) : " << pits[13].seeds << std::endl;
+        std::cout << "----------------------------------------" << std::endl;
+        std::cout << "SCORE J1 (Bas)  : " << pits[6].seeds << std::endl;
+        std::cout << "========================================" << std::endl;
+        std::cout << "STATUS : " << statusMessage << std::endl;
+        std::cout << "========================================\n" << std::endl;
+    }
+
+    // Met à jour quelles fosses sont "actives" (brillantes) selon le tour
     void UpdateActivePits() {
         for(auto& p : pits) {
             p.isActive = false;
+            // Si c'est au J1, seules 0-5 sont actives
             if (currentPlayer == 0 && p.id >= 0 && p.id <= 5 && p.seeds > 0) p.isActive = true;
+            // Si c'est au J2, seules 7-12 sont actives
             if (currentPlayer == 1 && p.id >= 7 && p.id <= 12 && p.seeds > 0) p.isActive = true;
         }
     }
@@ -107,8 +119,7 @@ public:
     void Update(float deltaTime) {
         if (state == ANIMATING) {
             activeSeed.progress += deltaTime * moveSpeed;
-            // Arc parabolique (saute haut)
-            float height = sin(activeSeed.progress * 3.14159f) * 3.5f;
+            float height = sin(activeSeed.progress * 3.14159f) * 2.5f;
             activeSeed.currentPos = glm::mix(activeSeed.startPos, activeSeed.endPos, activeSeed.progress);
             activeSeed.currentPos.y += height;
 
@@ -133,7 +144,6 @@ public:
         activeSeed.targetPitIndex = nextPitId;
         activeSeed.endPos = pits[nextPitId].position;
         activeSeed.progress = 0.0f;
-        activeSeed.colorIdx = rand() % 4; // Change couleur pour effet visuel
     }
 
     int ProcessClick(glm::vec3 rayOrigin, glm::vec3 rayDir, bool isEditMode) {
@@ -145,6 +155,7 @@ public:
 
         for(auto& pit : pits) {
             if (pit.isHidden) continue;
+            // En mode jeu, on ne peut cliquer que sur les fosses ACTIVES
             if (!isEditMode && !pit.isActive) continue;
 
             glm::vec3 oc = pit.position - rayOrigin;
@@ -169,6 +180,7 @@ public:
     }
 
     void TryPlayMove(int pitIndex) {
+        // Verification double (redondante mais sûre)
         if (currentPlayer == 0 && (pitIndex < 0 || pitIndex > 5)) return;
         if (currentPlayer == 1 && (pitIndex < 7 || pitIndex > 12)) return;
 
@@ -180,6 +192,7 @@ public:
 
         for (int i = 0; i < seedsInHand; i++) {
             currentIndex = (currentIndex + 1) % 14;
+            // Sauter magasin adverse
             if (currentPlayer == 0 && currentIndex == 13) currentIndex = 0;
             else if (currentPlayer == 1 && currentIndex == 6) currentIndex = 7;
 
@@ -195,26 +208,25 @@ public:
         activeSeed.targetPitIndex = firstTarget;
         activeSeed.endPos = pits[firstTarget].position;
         activeSeed.progress = 0.0f;
-        activeSeed.colorIdx = rand() % 4;
 
+        // Pendant l'animation, plus personne n'est actif
         for(auto& p : pits) p.isActive = false;
     }
 
     void OnMoveFinished(int lastPitIdx) {
         state = IDLE;
         bool switchTurn = true;
-        turnChanged = false; // Reset
 
-        // REJOUER
+        // REGLE REJOUER
         if (currentPlayer == 0 && lastPitIdx == 6) {
-            statusMessage = "JOUEUR 1 REJOUE !";
+            statusMessage = ">>> JOUEUR 1 REJOUE ! (Derniere au magasin)";
             switchTurn = false;
         } else if (currentPlayer == 1 && lastPitIdx == 13) {
-            statusMessage = "JOUEUR 2 REJOUE !";
+            statusMessage = ">>> JOUEUR 2 REJOUE ! (Derniere au magasin)";
             switchTurn = false;
         }
 
-        // CAPTURE
+        // REGLE CAPTURE
         else if (pits[lastPitIdx].seeds == 1) {
             bool isMySide = false;
             if (currentPlayer == 0 && lastPitIdx >= 0 && lastPitIdx <= 5) isMySide = true;
@@ -228,7 +240,7 @@ public:
                     pits[lastPitIdx].seeds = 0;
                     int myStore = (currentPlayer == 0) ? 6 : 13;
                     pits[myStore].seeds += captured;
-                    statusMessage = "CAPTURE !";
+                    statusMessage = "CAPTURE ! + " + std::to_string(captured);
                 }
             }
         }
@@ -238,11 +250,10 @@ public:
         if (!gameOver) {
             if (switchTurn) {
                 currentPlayer = 1 - currentPlayer;
-                statusMessage = (currentPlayer == 0) ? "Tour du Joueur 1" : "Tour du Joueur 2";
-                // IMPORTANT: C'est ici qu'on déclenche l'animation
-                turnChanged = true;
+                statusMessage = (currentPlayer == 0) ? "Tour du Joueur 1 (Bas)" : "Tour du Joueur 2 (Haut)";
             }
-            UpdateActivePits();
+            UpdateActivePits(); // Mettre à jour les lumières
+            PrintGameState();   // Afficher le score dans la console
         }
     }
 
@@ -257,32 +268,55 @@ public:
             for(int i=0; i<6; i++) { pits[6].seeds += pits[i].seeds; pits[i].seeds = 0; }
             for(int i=7; i<12; i++) { pits[13].seeds += pits[i].seeds; pits[i].seeds = 0; }
 
-            if (pits[6].seeds > pits[13].seeds) statusMessage = "VICTOIRE JOUEUR 1 !";
-            else if (pits[13].seeds > pits[6].seeds) statusMessage = "VICTOIRE JOUEUR 2 !";
-            else statusMessage = "EGALITE !";
+            std::string winner;
+            if (pits[6].seeds > pits[13].seeds) winner = "VICTOIRE JOUEUR 1 !";
+            else if (pits[13].seeds > pits[6].seeds) winner = "VICTOIRE JOUEUR 2 !";
+            else winner = "EGALITE !";
+            statusMessage = "FIN : " + winner;
         }
     }
 
     void UpdateHover(glm::vec3 rayOrigin, glm::vec3 rayDir, bool isEditMode) {
-        for(auto& pit : pits) pit.isHovered = false;
-        if (state == ANIMATING && !isEditMode) return;
+    // Reset
+    for (auto& pit : pits)
+        pit.isHovered = false;
 
-        float minDistance = 1000.0f;
-        int hoverID = -1;
-        for(auto& pit : pits) {
-            if (pit.isHidden) continue;
-            if (!isEditMode && !pit.isActive) continue;
+    if (state == ANIMATING && !isEditMode)
+        return;
 
-            glm::vec3 oc = pit.position - rayOrigin;
-            float t = glm::dot(oc, rayDir);
-            if (t < 0) continue;
-            glm::vec3 pOnRay = rayOrigin + rayDir * t;
-            if (glm::length(pit.position - pOnRay) < pit.radius) {
-                float distCam = glm::length(pit.position - rayOrigin);
-                if (distCam < minDistance) { minDistance = distCam; hoverID = pit.id; }
+    float minDistance = 1000.0f;
+    int hoverID = -1;
+
+    for (auto& pit : pits) {
+        if (pit.isHidden)
+            continue;
+
+        // En mode jeu : seulement les fosses actives
+        if (!isEditMode && !pit.isActive)
+            continue;
+
+        // Ray-sphere intersection simplifiée
+        glm::vec3 oc = pit.position - rayOrigin;
+        float t = glm::dot(oc, rayDir);
+        if (t < 0)
+            continue;
+
+        glm::vec3 pOnRay = rayOrigin + rayDir * t;
+        float distanceToCenter = glm::length(pit.position - pOnRay);
+
+        if (distanceToCenter < pit.radius) {
+            float distCam = glm::length(pit.position - rayOrigin);
+            if (distCam < minDistance) {
+                minDistance = distCam;
+                hoverID = pit.id;
             }
         }
-        if(hoverID != -1) pits[hoverID].isHovered = true;
     }
+
+    if (hoverID != -1) {
+        pits[hoverID].isHovered = true;
+    }
+}
+
 };
 #endif

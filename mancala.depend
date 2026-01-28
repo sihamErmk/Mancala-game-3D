@@ -1,5 +1,5 @@
 # depslib dependency file v1.0
-1769465486 source:c:\users\lenovo\downloads\code\mancala\main.cpp
+1769560069 source:c:\users\lenovo\downloads\code\mancala\main.cpp
 	<GL/glew.h>
 	<GLFW/glfw3.h>
 	<iostream>
@@ -8,7 +8,6 @@
 	<ctime>
 	<string>
 	<cmath>
-	<algorithm>
 	"Shader.hpp"
 	"Camera.hpp"
 	"Geometry.hpp"
@@ -952,7 +951,7 @@
 1738705850 c:\program files\codeblocks\mingw\x86_64-w64-mingw32\include\gl\glu.h
 	<GL/gl.h>
 
-1769360554 c:\users\lenovo\downloads\code\mancala\shader.hpp
+1769560162 c:\users\lenovo\downloads\code\mancala\shader.hpp
 	<GL/glew.h>
 	<glm/glm.hpp>
 	<glm/gtc/type_ptr.hpp>
@@ -961,21 +960,21 @@
 	<sstream>
 	<iostream>
 
-1769360497 c:\users\lenovo\downloads\code\mancala\camera.hpp
+1769560103 c:\users\lenovo\downloads\code\mancala\camera.hpp
 	<GL/glew.h>
 	<glm/glm.hpp>
 	<glm/gtc/matrix_transform.hpp>
 
-1769360517 c:\users\lenovo\downloads\code\mancala\geometry.hpp
+1769560118 c:\users\lenovo\downloads\code\mancala\geometry.hpp
 	"Mesh.hpp"
 	<cmath>
 
-1769360540 c:\users\lenovo\downloads\code\mancala\mesh.hpp
+1769560144 c:\users\lenovo\downloads\code\mancala\mesh.hpp
 	<GL/glew.h>
 	<glm/glm.hpp>
 	<vector>
 
-1769463932 c:\users\lenovo\downloads\code\mancala\mancalagame.hpp
+1769560824 c:\users\lenovo\downloads\code\mancala\mancalagame.hpp
 	<vector>
 	<queue>
 	<glm/glm.hpp>
