@@ -149,11 +149,13 @@ void RegenerateSeedVisuals() {
         std::vector<SeedVisual> visuals;
         for(int s=0; s<60; s++) {
             SeedVisual sv;
-            // Rayon aléatoire pour être dans le trou
-            float r = ((rand() % 100) / 100.0f) * 0.6f;
+            // Rayon : Plus petit pour que les billes restent bien au fond
+            float r = ((rand() % 100) / 100.0f) * 0.5f;
             float theta = ((rand() % 100) / 100.0f) * 6.28f;
-            // Hauteur négative pour être au fond du bol
-            float y = -0.4f + ((rand() % 100) / 500.0f);
+
+            // Hauteur : Variée entre -0.1 et -0.4 pour simuler l'empilement
+            // ATTENTION : Ne pas descendre trop bas sinon ça traverse le plateau !
+            float y = -0.1f - ((rand() % 100) / 300.0f);
 
             sv.offset = glm::vec3(r * cos(theta), y, r * sin(theta));
             sv.colorType = rand() % 3;
@@ -197,7 +199,7 @@ int main() {
 
     // --- CREATION DES MESHES ---
     Mesh boardMesh = Geometry::CreateCube();
-    // ICI : On utilise CreateBowl pour faire un trou creux
+    // Utilise CreateBowl pour le trou creux
     Mesh pitInteriorMesh = Geometry::CreateBowl(0.8f, 36, 18);
     Mesh seedMesh = Geometry::CreateSphere(0.2f);
     Mesh tableMesh = Geometry::CreatePlane();
@@ -279,50 +281,94 @@ int main() {
         shader.setMat4("model", model);
         boardMesh.Draw(shader.ID);
 
-        // --- 3. DESSINER LES FOSSES (CREUSES) ---
+        // --- 3. DESSINER LES FOSSES (Trous et Rebords) ---
         shader.setBool("useTexture", false);
 
         for(const auto& pit : game.pits) {
             if (pit.isHidden) continue;
 
-            glm::mat4 baseModel = glm::mat4(1.0f);
-            baseModel = glm::translate(baseModel, pit.position);
-            bool isStore = (pit.id == 6 || pit.id == 13);
-            if (isStore) baseModel = glm::scale(baseModel, glm::vec3(1.3f, 1.0f, 2.5f));
+            // --- Matrice de Position de base (Centre du trou) ---
+            glm::mat4 posMatrix = glm::mat4(1.0f);
+            posMatrix = glm::translate(posMatrix, pit.position);
 
-            // Intérieur du trou
-            // Note: CreateBowl génère vers le bas, donc pas besoin d'inverser l'échelle Y
-            model = glm::scale(baseModel, glm::vec3(1.0f, 1.0f, 1.0f));
-            shader.setMat4("model", model);
+            // Facteurs d'étirement pour les magasins (Stores)
+            float scaleX = (pit.id == 6 || pit.id == 13) ? 1.3f : 1.0f;
+            float scaleZ = (pit.id == 6 || pit.id == 13) ? 2.5f : 1.0f;
+            float scaleY = 1.5f; // Profondeur du trou (Plus grand = Plus creux)
+
+            // ==========================================
+            // A. DESSIN DU BOL (CREUX)
+            // ==========================================
+            glm::mat4 holeModel = posMatrix;
+            // On étire le trou pour qu'il soit profond et large si c'est un magasin
+            holeModel = glm::scale(holeModel, glm::vec3(scaleX, scaleY, scaleZ));
+
+            // Petit ajustement pour éviter que le haut du bol ne clignote avec le plateau
+            holeModel = glm::translate(holeModel, glm::vec3(0.0f, 0.02f, 0.0f));
+
+            shader.setMat4("model", holeModel);
 
             glm::vec3 pitColor = theme.pit;
             if (pit.isSelected) pitColor = glm::vec3(1.0f, 0.0f, 0.0f);
             else if (pit.isHovered && pit.isActive) pitColor = theme.highlight;
-            else if (!pit.isActive && !isStore) pitColor *= 0.5f;
+            else if (!pit.isActive && !(pit.id == 6 || pit.id == 13)) pitColor *= 0.5f;
 
-            shader.setVec3("objectColor", pitColor);
+            // On assombrit l'intérieur pour donner de la profondeur visuelle
+            shader.setVec3("objectColor", pitColor * 0.8f);
             pitInteriorMesh.Draw(shader.ID);
 
-            // Rebord (Anneau)
-            shader.setVec3("objectColor", theme.board * 0.8f);
-            model = baseModel;
-            shader.setMat4("model", model);
+            // ==========================================
+            // B. DESSIN DU REBORD (ANNEAU)
+            // ==========================================
+            glm::mat4 rimModel = posMatrix;
+            rimModel = glm::scale(rimModel, glm::vec3(scaleX, 1.0f, scaleZ));
+            shader.setMat4("model", rimModel);
+            shader.setVec3("objectColor", theme.board * 0.6f); // Couleur bois plus foncé
             rimMesh.Draw(shader.ID);
 
-            // --- 4. GRAINES ---
+            // ==========================================
+            // C. DESSIN DES GRAINES (CORRECTION)
+            // ==========================================
             int seedCount = pit.seeds;
             for(int s = 0; s < seedCount; s++) {
                 SeedVisual& sv = pitSeedsVisuals[pit.id][s % 60];
-                glm::mat4 seedModel = baseModel;
-                seedModel = glm::translate(seedModel, sv.offset);
 
+                // 1. On repart d'une matrice PROPRE (Identité)
+                // C'est ça qui empêche les graines de devenir ovales !
+                glm::mat4 seedModel = glm::mat4(1.0f);
+
+                // 2. Calcul de la position précise
+                float finalX = sv.offset.x;
+                float finalZ = sv.offset.z;
+
+                // Si c'est un magasin, on étale les positions x/z, mais on ne déforme pas l'objet
+                if (pit.id == 6 || pit.id == 13) {
+                    finalX *= 1.5f; // Étaler sur la largeur
+                    finalZ *= 2.8f; // Étaler sur la longueur
+                }
+
+                // Ajustement de la hauteur (Y) pour toucher le fond du trou creux
+                // On garde la hauteur générée (environ -0.2) qui convient bien au bol
+                float finalY = sv.offset.y - 0.15f;
+
+                // 3. Application de la translation
+                // Position du trou + Décalage de la graine
+                glm::vec3 seedPos = pit.position + glm::vec3(finalX, finalY, finalZ);
+                seedModel = glm::translate(seedModel, seedPos);
+
+                // 4. Application de l'échelle de la graine
+                // On garde 1.0 partout pour une sphère parfaite
+                seedModel = glm::scale(seedModel, glm::vec3(1.0f));
+
+                shader.setMat4("model", seedModel);
+
+                // Couleurs
                 glm::vec3 seedColor;
                 if (sv.colorType == 0) seedColor = glm::vec3(0.2f, 0.6f, 1.0f);
                 else if (sv.colorType == 1) seedColor = glm::vec3(1.0f, 0.2f, 0.2f);
                 else seedColor = glm::vec3(0.2f, 0.8f, 0.2f);
-                if (currentThemeIdx == 2) seedColor = glm::vec3(0.2f);
+                if (currentThemeIdx == 2) seedColor = glm::vec3(0.15f);
 
-                shader.setMat4("model", seedModel);
                 shader.setVec3("objectColor", seedColor);
                 seedMesh.Draw(shader.ID);
             }

@@ -120,7 +120,7 @@ public:
         for(int i = 0; i <= stackCount; ++i) {
             stackAngle = M_PI / 2 - i * stackStep;
             xy = radius * cosf(stackAngle);
-            z = radius * sinf(stackAngle); // Hauteur Z
+            z = radius * sinf(stackAngle);  // Hauteur Z
 
             for(int j = 0; j <= sectorCount; ++j) {
                 sectorAngle = j * sectorStep;
