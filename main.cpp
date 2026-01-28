@@ -12,11 +12,11 @@
 #include "Geometry.hpp"
 #include "MancalaGame.hpp"
 
-// --- CONSTANTES ---
-const unsigned int SCR_WIDTH = 1280;
-const unsigned int SCR_HEIGHT = 720;
+// --- VARIABLES GLOBALES (Pas const pour le redimensionnement) ---
+unsigned int SCR_WIDTH = 1280;
+unsigned int SCR_HEIGHT = 720;
 
-// --- SYSTEME DE THEMES ---
+// --- THEMES ---
 struct Theme {
     glm::vec3 bg;
     glm::vec3 board;
@@ -28,19 +28,19 @@ struct Theme {
 };
 
 Theme themes[3] = {
-    // 0: Bois Luxueux
+    // 0: Bois
     { glm::vec3(0.15f, 0.1f, 0.1f), glm::vec3(0.6f, 0.4f, 0.2f), glm::vec3(0.45f, 0.3f, 0.15f), glm::vec3(1.0f, 0.8f, 0.4f), glm::vec3(0.2f, 0.4f, 1.0f), glm::vec3(1.0f, 0.2f, 0.2f), true },
-    // 1: Cyber Neon
+    // 1: Neon
     { glm::vec3(0.05f, 0.05f, 0.1f), glm::vec3(0.1f, 0.1f, 0.15f), glm::vec3(0.05f, 0.05f, 0.1f), glm::vec3(0.0f, 1.0f, 1.0f), glm::vec3(0.0f, 1.0f, 1.0f), glm::vec3(1.0f, 0.0f, 1.0f), false },
-    // 2: Marbre Blanc
+    // 2: Marbre
     { glm::vec3(0.8f, 0.85f, 0.9f), glm::vec3(0.95f, 0.95f, 0.95f), glm::vec3(0.85f, 0.85f, 0.85f), glm::vec3(1.0f, 0.8f, 0.5f), glm::vec3(0.4f, 0.4f, 0.6f), glm::vec3(0.6f, 0.4f, 0.4f), false }
 };
 int currentThemeIdx = 0;
 
-// --- CAMERA & SOURIS ---
+// --- CAMERA ---
 float camRadius = 22.0f;
 float camYaw = -90.0f;
-float camPitch = 45.0f;
+float camPitch = 60.0f;
 Camera camera(glm::vec3(0.0f, 15.0f, 20.0f));
 
 float lastX = SCR_WIDTH / 2.0f;
@@ -50,7 +50,6 @@ bool cursorEnabled = true;
 bool editMode = false;
 bool wireframeMode = false;
 
-// --- JEU & TEMPS ---
 MancalaGame game;
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
@@ -60,88 +59,68 @@ std::vector<std::vector<SeedVisual>> pitSeedsVisuals;
 unsigned int woodTextureID;
 unsigned int tableTextureID;
 
-// --- PROTOTYPES ---
+// --- PROTOTYPES (Déclarations avant utilisation) ---
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
 void mouse_callback(GLFWwindow* window, double xpos, double ypos);
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset);
 void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 void processInput(GLFWwindow *window);
+void UpdateWindowTitle(GLFWwindow* window); // AJOUTÉ ICI POUR EVITER L'ERREUR
 
-// --- FONCTIONS UTILITAIRES ---
+// --- FONCTIONS ---
 
-// Calcul du rayon de la souris (Raycasting)
 glm::vec3 GetMouseRay(GLFWwindow* window, const glm::mat4& projection, const glm::mat4& view) {
     double xpos, ypos;
     glfwGetCursorPos(window, &xpos, &ypos);
 
-    // 1. Coordonnées normalisées (NDC)
-    float x = (2.0f * xpos) / SCR_WIDTH - 1.0f;
-    float y = 1.0f - (2.0f * ypos) / SCR_HEIGHT;
+    // Taille réelle fenêtre (important si redimensionné)
+    int width, height;
+    glfwGetWindowSize(window, &width, &height);
 
-    // 2. Clip Space
+    float x = (2.0f * xpos) / width - 1.0f;
+    float y = 1.0f - (2.0f * ypos) / height;
     glm::vec4 ray_clip = glm::vec4(x, y, -1.0, 1.0);
-
-    // 3. Eye Space
     glm::vec4 ray_eye = glm::inverse(projection) * ray_clip;
     ray_eye = glm::vec4(ray_eye.x, ray_eye.y, -1.0, 0.0);
-
-    // 4. World Space
-    glm::vec3 ray_wor = glm::vec3(glm::inverse(view) * ray_eye);
-    ray_wor = glm::normalize(ray_wor);
-
+    glm::vec3 ray_wor = glm::normalize(glm::vec3(glm::inverse(view) * ray_eye));
     return ray_wor;
 }
 
-// Génération de texture procédurale (Bruit)
 unsigned int CreateProceduralTexture(int type) {
     const int width = 512;
     const int height = 512;
     unsigned char data[width * height * 3];
-
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
             float r, g, b;
-
             if (type == 0) { // BOIS
                 float xCoord = (float)x / width * 10.0f;
                 float yCoord = (float)y / height * 10.0f;
                 float value = sin(xCoord + sin(yCoord * 0.5f) + 5.0f * ((float)rand()/RAND_MAX * 0.1f));
                 value = (value + 1.0f) * 0.5f;
-
                 float r1 = 0.6f, g1 = 0.4f, b1 = 0.2f;
                 float r2 = 0.35f, g2 = 0.2f, b2 = 0.1f;
-
                 r = (r1 * value + r2 * (1.0f - value)) * 255;
                 g = (g1 * value + g2 * (1.0f - value)) * 255;
                 b = (b1 * value + b2 * (1.0f - value)) * 255;
-            }
-            else { // TABLE
+            } else { // TABLE
                 float noise = ((float)rand() / RAND_MAX) * 0.1f;
                 r = (0.2f + noise) * 255;
                 g = (0.2f + noise) * 255;
                 b = (0.25f + noise) * 255;
             }
-
             int index = (y * width + x) * 3;
-            data[index] = (unsigned char)r;
-            data[index + 1] = (unsigned char)g;
-            data[index + 2] = (unsigned char)b;
+            data[index] = (unsigned char)r; data[index + 1] = (unsigned char)g; data[index + 2] = (unsigned char)b;
         }
     }
-
     unsigned int textureID;
     glGenTextures(1, &textureID);
     glBindTexture(GL_TEXTURE_2D, textureID);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
     glGenerateMipmap(GL_TEXTURE_2D);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     return textureID;
 }
 
-// Positionnement aléatoire des graines dans les trous
 void RegenerateSeedVisuals() {
     pitSeedsVisuals.clear();
     srand(time(0));
@@ -149,14 +128,9 @@ void RegenerateSeedVisuals() {
         std::vector<SeedVisual> visuals;
         for(int s=0; s<60; s++) {
             SeedVisual sv;
-            // Rayon : Plus petit pour que les billes restent bien au fond
             float r = ((rand() % 100) / 100.0f) * 0.5f;
             float theta = ((rand() % 100) / 100.0f) * 6.28f;
-
-            // Hauteur : Variée entre -0.1 et -0.4 pour simuler l'empilement
-            // ATTENTION : Ne pas descendre trop bas sinon ça traverse le plateau !
-            float y = -0.1f - ((rand() % 100) / 300.0f);
-
+            float y = -0.1f - ((rand() % 100) / 400.0f);
             sv.offset = glm::vec3(r * cos(theta), y, r * sin(theta));
             sv.colorType = rand() % 3;
             visuals.push_back(sv);
@@ -165,6 +139,7 @@ void RegenerateSeedVisuals() {
     }
 }
 
+// Définition de la fonction UpdateWindowTitle
 void UpdateWindowTitle(GLFWwindow* window) {
     std::string title = "Mancala 3D | " + game.statusMessage;
     if (editMode) title += " [MODE EDIT]";
@@ -173,7 +148,6 @@ void UpdateWindowTitle(GLFWwindow* window) {
 
 // --- MAIN ---
 int main() {
-    // Initialisation GLFW
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -188,29 +162,24 @@ int main() {
     glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
 
-    // Initialisation GLEW
     if (glewInit() != GLEW_OK) return -1;
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // Chargement Shader
+    // Stencil Buffer
+    glEnable(GL_DEPTH_TEST);
+    glEnable(GL_STENCIL_TEST);
+    glStencilOp(GL_KEEP, GL_KEEP, GL_REPLACE);
+
     Shader shader("shaders/vertex.glsl", "shaders/fragment.glsl");
 
-    // --- CREATION DES MESHES ---
     Mesh boardMesh = Geometry::CreateCube();
-    // Utilise CreateBowl pour le trou creux
     Mesh pitInteriorMesh = Geometry::CreateBowl(0.8f, 36, 18);
     Mesh seedMesh = Geometry::CreateSphere(0.2f);
     Mesh tableMesh = Geometry::CreatePlane();
-    Mesh rimMesh = Geometry::CreateTorus(0.8f, 0.1f);
 
-    // Textures
     woodTextureID = CreateProceduralTexture(0);
     tableTextureID = CreateProceduralTexture(1);
     RegenerateSeedVisuals();
 
-    // Boucle de rendu
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
@@ -219,7 +188,7 @@ int main() {
         processInput(window);
         game.Update(deltaTime);
 
-        // Mise à jour Caméra
+        // Camera
         float camX = camRadius * cos(glm::radians(camYaw)) * cos(glm::radians(camPitch));
         float camY = camRadius * sin(glm::radians(camPitch));
         float camZ = camRadius * sin(glm::radians(camYaw)) * cos(glm::radians(camPitch));
@@ -231,17 +200,17 @@ int main() {
         UpdateWindowTitle(window);
         Theme& theme = themes[currentThemeIdx];
 
+        // --- MASK STENCIL (IMPORTANT POUR QUE LE PLATEAU RESTE) ---
+        glStencilMask(0xFF);
         glClearColor(theme.bg.r, theme.bg.g, theme.bg.b, 1.0f);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 
         if (wireframeMode) glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
         else glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-        // Matrices
         glm::mat4 projection = glm::perspective(glm::radians(camera.Zoom), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
         glm::mat4 view = camera.GetViewMatrix();
 
-        // Raycast interactif (Survol)
         if (cursorEnabled) {
             glm::vec3 rayDir = GetMouseRay(window, projection, view);
             game.UpdateHover(camera.Position, rayDir, editMode);
@@ -252,60 +221,81 @@ int main() {
         shader.setMat4("view", view);
         shader.setVec3("viewPos", camera.Position);
 
-        // Lumière dynamique
         glm::vec3 activeColor = (game.currentPlayer == 0) ? theme.p1Color : theme.p2Color;
         if(game.gameOver) activeColor = glm::vec3(0.0f, 1.0f, 0.0f);
-
         shader.setVec3("lightPos", 0.0f, 15.0f, 5.0f);
         shader.setVec3("lightColor", glm::mix(glm::vec3(1.0f), activeColor, 0.3f));
 
-        // --- 1. DESSINER LA TABLE ---
-        glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, tableTextureID);
-        shader.setInt("texture1", 0);
-        shader.setBool("useTexture", true);
-        shader.setVec3("objectColor", glm::vec3(0.8f));
-        glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
-        shader.setMat4("model", model);
-        tableMesh.Draw(shader.ID);
+        // ------------------------------------------------------------------
+        // ETAPE 1 : REMPLIR LE POCHOIR (LES TROUS)
+        // ------------------------------------------------------------------
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
+        glStencilMask(0xFF);
+        glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE);
+        glDepthMask(GL_FALSE);
 
-        // --- 2. DESSINER LE PLATEAU ---
+        shader.setBool("useTexture", false);
+        for(const auto& pit : game.pits) {
+            if (pit.isHidden) continue;
+            glm::mat4 model = glm::mat4(1.0f);
+            model = glm::translate(model, pit.position);
+            float scaleX = (pit.id == 6 || pit.id == 13) ? 1.3f : 1.0f;
+            float scaleZ = (pit.id == 6 || pit.id == 13) ? 2.5f : 1.0f;
+
+            model = glm::scale(model, glm::vec3(scaleX * 0.95f, 1.0f, scaleZ * 0.95f));
+            shader.setMat4("model", model);
+            pitInteriorMesh.Draw(shader.ID);
+        }
+
+        // ------------------------------------------------------------------
+        // ETAPE 2 : DESSINER LE PLATEAU (Sauf là où il y a des trous)
+        // ------------------------------------------------------------------
+        glStencilFunc(GL_NOTEQUAL, 1, 0xFF);
+        glStencilMask(0x00);
+        glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+        glDepthMask(GL_TRUE);
+
+        glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, woodTextureID);
+        shader.setInt("texture1", 0);
         shader.setBool("useTexture", theme.useTexture);
         shader.setVec3("objectColor", theme.board);
 
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, -0.6f, 0.0f));
-        model = glm::scale(model, glm::vec3(18.5f, 0.6f, 7.5f));
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, -1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(18.5f, 2.0f, 7.5f));
         shader.setMat4("model", model);
         boardMesh.Draw(shader.ID);
 
-        // --- 3. DESSINER LES FOSSES (Trous et Rebords) ---
-        shader.setBool("useTexture", false);
+        // ------------------------------------------------------------------
+        // ETAPE 3 : DESSINER LE RESTE
+        // ------------------------------------------------------------------
+        glStencilFunc(GL_ALWAYS, 1, 0xFF);
 
+        // A. Table
+        glBindTexture(GL_TEXTURE_2D, tableTextureID);
+        shader.setBool("useTexture", true);
+        shader.setVec3("objectColor", glm::vec3(0.8f));
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(0.0f, -2.5f, 0.0f));
+        shader.setMat4("model", model);
+        tableMesh.Draw(shader.ID);
+
+        // B. Intérieur des Trous et Graines
+        shader.setBool("useTexture", false);
         for(const auto& pit : game.pits) {
             if (pit.isHidden) continue;
 
-            // --- Matrice de Position de base (Centre du trou) ---
             glm::mat4 posMatrix = glm::mat4(1.0f);
             posMatrix = glm::translate(posMatrix, pit.position);
 
-            // Facteurs d'étirement pour les magasins (Stores)
             float scaleX = (pit.id == 6 || pit.id == 13) ? 1.3f : 1.0f;
             float scaleZ = (pit.id == 6 || pit.id == 13) ? 2.5f : 1.0f;
-            float scaleY = 1.5f; // Profondeur du trou (Plus grand = Plus creux)
 
-            // ==========================================
-            // A. DESSIN DU BOL (CREUX)
-            // ==========================================
+            // 1. Bol Intérieur (Creusé)
             glm::mat4 holeModel = posMatrix;
-            // On étire le trou pour qu'il soit profond et large si c'est un magasin
-            holeModel = glm::scale(holeModel, glm::vec3(scaleX, scaleY, scaleZ));
-
-            // Petit ajustement pour éviter que le haut du bol ne clignote avec le plateau
+            holeModel = glm::scale(holeModel, glm::vec3(scaleX, 1.8f, scaleZ));
             holeModel = glm::translate(holeModel, glm::vec3(0.0f, 0.02f, 0.0f));
-
             shader.setMat4("model", holeModel);
 
             glm::vec3 pitColor = theme.pit;
@@ -313,56 +303,29 @@ int main() {
             else if (pit.isHovered && pit.isActive) pitColor = theme.highlight;
             else if (!pit.isActive && !(pit.id == 6 || pit.id == 13)) pitColor *= 0.5f;
 
-            // On assombrit l'intérieur pour donner de la profondeur visuelle
-            shader.setVec3("objectColor", pitColor * 0.8f);
+            shader.setVec3("objectColor", pitColor * 0.7f);
             pitInteriorMesh.Draw(shader.ID);
 
-            // ==========================================
-            // B. DESSIN DU REBORD (ANNEAU)
-            // ==========================================
-            glm::mat4 rimModel = posMatrix;
-            rimModel = glm::scale(rimModel, glm::vec3(scaleX, 1.0f, scaleZ));
-            shader.setMat4("model", rimModel);
-            shader.setVec3("objectColor", theme.board * 0.6f); // Couleur bois plus foncé
-            rimMesh.Draw(shader.ID);
-
-            // ==========================================
-            // C. DESSIN DES GRAINES (CORRECTION)
-            // ==========================================
+            // 2. Graines
             int seedCount = pit.seeds;
             for(int s = 0; s < seedCount; s++) {
                 SeedVisual& sv = pitSeedsVisuals[pit.id][s % 60];
 
-                // 1. On repart d'une matrice PROPRE (Identité)
-                // C'est ça qui empêche les graines de devenir ovales !
                 glm::mat4 seedModel = glm::mat4(1.0f);
-
-                // 2. Calcul de la position précise
                 float finalX = sv.offset.x;
                 float finalZ = sv.offset.z;
-
-                // Si c'est un magasin, on étale les positions x/z, mais on ne déforme pas l'objet
+                // Étaler les graines dans les grands magasins
                 if (pit.id == 6 || pit.id == 13) {
-                    finalX *= 1.5f; // Étaler sur la largeur
-                    finalZ *= 2.8f; // Étaler sur la longueur
+                    finalX *= 1.5f; finalZ *= 2.5f;
                 }
 
-                // Ajustement de la hauteur (Y) pour toucher le fond du trou creux
-                // On garde la hauteur générée (environ -0.2) qui convient bien au bol
-                float finalY = sv.offset.y - 0.15f;
+                glm::vec3 seedPos = pit.position + glm::vec3(finalX, sv.offset.y - 0.1f, finalZ);
 
-                // 3. Application de la translation
-                // Position du trou + Décalage de la graine
-                glm::vec3 seedPos = pit.position + glm::vec3(finalX, finalY, finalZ);
                 seedModel = glm::translate(seedModel, seedPos);
-
-                // 4. Application de l'échelle de la graine
-                // On garde 1.0 partout pour une sphère parfaite
                 seedModel = glm::scale(seedModel, glm::vec3(1.0f));
 
                 shader.setMat4("model", seedModel);
 
-                // Couleurs
                 glm::vec3 seedColor;
                 if (sv.colorType == 0) seedColor = glm::vec3(0.2f, 0.6f, 1.0f);
                 else if (sv.colorType == 1) seedColor = glm::vec3(1.0f, 0.2f, 0.2f);
@@ -374,7 +337,6 @@ int main() {
             }
         }
 
-        // --- 5. ANIMATION GRAINE ---
         if (game.state == ANIMATING) {
             model = glm::mat4(1.0f);
             model = glm::translate(model, game.activeSeed.currentPos);
@@ -390,7 +352,6 @@ int main() {
     return 0;
 }
 
-// --- CALLBACKS ---
 void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
     if (firstMouse) { lastX = xpos; lastY = ypos; firstMouse = false; }
     float xoffset = xpos - lastX;
@@ -408,7 +369,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 void processInput(GLFWwindow *window) {
     if(glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) glfwSetWindowShouldClose(window, true);
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {
-        camYaw = -90.0f; camPitch = 45.0f; camRadius = 22.0f;
+        camYaw = -90.0f; camPitch = 60.0f; camRadius = 22.0f;
     }
     static bool ePressed = false;
     if (glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS && !ePressed) { editMode = !editMode; ePressed = true; }
@@ -422,8 +383,6 @@ void processInput(GLFWwindow *window) {
 
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) camRadius -= 10.0f * deltaTime;
     if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS) camRadius += 10.0f * deltaTime;
-    if (camRadius < 5.0f) camRadius = 5.0f;
-    if (camRadius > 50.0f) camRadius = 50.0f;
 }
 
 void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
@@ -441,4 +400,8 @@ void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
     }
 }
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height) { glViewport(0, 0, width, height); }
+void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, width, height);
+    SCR_WIDTH = width;
+    SCR_HEIGHT = height;
+}

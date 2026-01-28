@@ -58,7 +58,7 @@ public:
         state = IDLE;
         currentPlayer = 0; // Le Joueur 1 commence toujours
         gameOver = false;
-        moveSpeed = 6.0f;
+        moveSpeed = 3.0f;
         statusMessage = "Jeu pret. Tour du Joueur 1 (Bas)";
 
         // --- JOUEUR 1 (Bas) : Indices 0 à 5 ---
